@@ -1,6 +1,6 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { formatDistanceToNow } from "date-fns"
-import { MessageSquare, Sparkles, Loader2 } from "lucide-react"
+import { MessageSquare, Sparkles, Loader as Loader2 } from "lucide-react"
 import { Link } from "react-router-dom"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -13,19 +13,31 @@ import {
 import type { Post } from "@/lib/supabase"
 import { TAG_COLORS } from "@/lib/tag-colors"
 import { supabase } from "@/lib/supabase"
+import { getSignedUrl } from "@/lib/media-upload"
 
 interface PostCardProps {
   post: Post
 }
 
 export function PostCard({ post }: PostCardProps) {
-  const author = post.author_name?.trim() || "Anonymous"
+  const author = post.show_anonymous ? "Anonymous" : (post.author_name?.trim() || "Anonymous")
   const timeAgo = formatDistanceToNow(new Date(post.created_at), { addSuffix: true })
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [explanation, setExplanation] = useState<string | null>(null)
   const [explaining, setExplaining] = useState(false)
   const [explainError, setExplainError] = useState<string | null>(null)
+
+  const [signedMediaUrl, setSignedMediaUrl] = useState<string | null>(null)
+
+  // Get signed URL for private media
+  useEffect(() => {
+    if (post.media_url && !post.media_url.startsWith("http")) {
+      getSignedUrl(post.media_url).then((url) => {
+        if (url) setSignedMediaUrl(url)
+      })
+    }
+  }, [post.media_url])
 
   async function fetchExplanation() {
     setExplaining(true)
@@ -65,6 +77,9 @@ export function PostCard({ post }: PostCardProps) {
     if (!explanation) fetchExplanation()
   }
 
+  const mediaUrl = signedMediaUrl || post.media_url
+  const isVideo = post.media_url?.match(/\.(mp4|webm|ogg)$/i)
+
   return (
     <>
       <article className="border border-border rounded-lg px-5 py-4 bg-card hover:bg-card/80 hover:border-border/80 transition-all duration-150">
@@ -85,18 +100,18 @@ export function PostCard({ post }: PostCardProps) {
               {post.description}
             </p>
           )}
-          {post.media_url && (
+          {mediaUrl && (
             <div className="mt-3 rounded-md overflow-hidden border border-border/50 max-h-48">
-              {post.media_url.match(/\.(mp4|webm|ogg)$/i) ? (
+              {isVideo ? (
                 <video
-                  src={post.media_url}
+                  src={mediaUrl}
                   className="w-full max-h-48 object-cover"
                   muted
                   preload="metadata"
                 />
               ) : (
                 <img
-                  src={post.media_url}
+                  src={mediaUrl}
                   alt={post.title}
                   className="w-full max-h-48 object-cover"
                   loading="lazy"

@@ -19,6 +19,7 @@ export interface Post {
   user_id: string | null
   created_at: string
   comment_count?: number
+  show_anonymous?: boolean
 }
 
 export interface Comment {
@@ -28,4 +29,5 @@ export interface Comment {
   author_name: string | null
   user_id: string | null
   created_at: string
+  show_anonymous?: boolean
 }

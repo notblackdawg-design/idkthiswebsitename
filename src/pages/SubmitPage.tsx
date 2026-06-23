@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { ArrowLeft, X, Image as ImageIcon } from "lucide-react"
+import { ArrowLeft, X, Image as ImageIcon, Loader as Loader2, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -10,11 +10,15 @@ import { Footer } from "@/components/Footer"
 import { supabase, TAGS, type Tag } from "@/lib/supabase"
 import { TAG_COLORS } from "@/lib/tag-colors"
 import { useAuth } from "@/hooks/use-auth"
+import { useRateLimit, formatRateLimitMessage } from "@/hooks/use-rate-limit"
+import { sanitizeTitle, sanitizeDescription, sanitizeText } from "@/lib/sanitize"
+import { uploadMedia, validateMediaFile } from "@/lib/media-upload"
 import { cn } from "@/lib/utils"
 
 export function SubmitPage() {
   const navigate = useNavigate()
   const { user, displayName } = useAuth()
+  const { limited: rateLimited, remaining, getTimeUntilReset, checkRateLimit } = useRateLimit()
 
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
@@ -24,25 +28,57 @@ export function SubmitPage() {
   const [mediaPreview, setMediaPreview] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [mediaError, setMediaError] = useState<string | null>(null)
+
+  // Validation states
+  const [titleError, setTitleError] = useState<string | null>(null)
+  const [descError, setDescError] = useState<string | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Check rate limit on mount
+  useEffect(() => {
+    checkRateLimit("post")
+  }, [checkRateLimit])
 
   useEffect(() => {
     if (displayName) setAuthorName(displayName)
   }, [displayName])
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  // Validation on change
+  useEffect(() => {
+    if (title) {
+      const result = sanitizeTitle(title)
+      setTitleError(result.valid ? null : result.error)
+    } else {
+      setTitleError(null)
+    }
+  }, [title])
+
+  useEffect(() => {
+    if (description) {
+      const result = sanitizeDescription(description)
+      setDescError(result.valid ? null : result.error)
+    } else {
+      setDescError(null)
+    }
+  }, [description])
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
 
-    if (file.size > 10 * 1024 * 1024) {
-      setError("File too large. Max size is 10MB.")
+    setMediaError(null)
+
+    // Validate file
+    const validation = await validateMediaFile(file)
+    if (!validation.valid) {
+      setMediaError(validation.error || "Invalid file")
       return
     }
 
     setMediaFile(file)
     setMediaPreview(URL.createObjectURL(file))
-    setError(null)
   }
 
   function removeMedia() {
@@ -54,7 +90,27 @@ export function SubmitPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!title.trim()) return
+
+    // Validate
+    const titleResult = sanitizeTitle(title)
+    if (!titleResult.valid) {
+      setTitleError(titleResult.error)
+      return
+    }
+
+    const descResult = sanitizeDescription(description)
+
+    if (rateLimited) {
+      setError(formatRateLimitMessage("post", getTimeUntilReset()))
+      return
+    }
+
+    // Check rate limit again
+    const rateCheck = await checkRateLimit("post")
+    if (!rateCheck.allowed) {
+      setError(formatRateLimitMessage("post", getTimeUntilReset()))
+      return
+    }
 
     setSubmitting(true)
     setError(null)
@@ -62,31 +118,35 @@ export function SubmitPage() {
     let mediaUrl: string | null = null
 
     if (mediaFile) {
-      const ext = mediaFile.name.split(".").pop()
-      const fileName = `${crypto.randomUUID()}.${ext}`
-      const { error: uploadError } = await supabase.storage
-        .from("media")
-        .upload(fileName, mediaFile)
-
-      if (uploadError) {
-        setError("Failed to upload media. Please try again.")
+      const uploadResult = await uploadMedia(mediaFile, user?.id || "anonymous", "posts")
+      if (!uploadResult.success) {
+        setError(uploadResult.error || "Failed to upload media")
         setSubmitting(false)
         return
       }
-
-      const { data: urlData } = supabase.storage.from("media").getPublicUrl(fileName)
-      mediaUrl = urlData.publicUrl
+      // Store the path for signed URL generation
+      mediaUrl = uploadResult.url
     }
+
+    // Get user's privacy preference
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("show_real_name")
+      .eq("user_id", user?.id)
+      .maybeSingle()
+
+    const showAnonymous = profile ? !profile.show_real_name : false
 
     const { data, error: insertError } = await supabase
       .from("posts")
       .insert({
-        title: title.trim(),
-        description: description.trim() || null,
+        title: titleResult.value,
+        description: descResult.value,
         media_url: mediaUrl,
         tag,
-        author_name: authorName.trim() || null,
+        author_name: showAnonymous ? null : (authorName.trim() || null),
         user_id: user?.id ?? null,
+        show_anonymous: showAnonymous,
       })
       .select()
       .single()
@@ -101,6 +161,7 @@ export function SubmitPage() {
   }
 
   const isVideo = mediaFile?.type.startsWith("video/")
+  const isValid = title.trim() && !titleError && !descError && !mediaError && !rateLimited
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -122,6 +183,18 @@ export function SubmitPage() {
           </p>
         </div>
 
+        {rateLimited && (
+          <div className="mb-6 p-4 rounded-lg border border-yellow-500/30 bg-yellow-500/10 flex items-start gap-3">
+            <Clock className="size-4 text-yellow-500 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm text-yellow-500 font-medium">Rate limit reached</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {formatRateLimitMessage("post", getTimeUntilReset())}
+              </p>
+            </div>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -137,24 +210,37 @@ export function SubmitPage() {
               placeholder="e.g. Building a Rust compiler frontend"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="bg-transparent h-10 text-sm"
+              className={cn(
+                "bg-transparent h-10 text-sm",
+                titleError && "border-destructive"
+              )}
               maxLength={100}
               required
             />
+            {titleError && <p className="text-xs text-destructive">{titleError}</p>}
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="description" className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              More detail (optional)
-            </Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="description" className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                More detail (optional)
+              </Label>
+              <span className={`text-xs tabular-nums transition-colors ${description.length >= 900 ? "text-destructive" : "text-muted-foreground/40"}`}>
+                {description.length}/1000
+              </span>
+            </div>
             <Textarea
               id="description"
               placeholder="Share more about what you're making, what stage you're at, or what's interesting about it..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="bg-transparent text-sm resize-none min-h-24"
-              maxLength={2000}
+              className={cn(
+                "bg-transparent text-sm resize-none min-h-24",
+                descError && "border-destructive"
+              )}
+              maxLength={1000}
             />
+            {descError && <p className="text-xs text-destructive">{descError}</p>}
           </div>
 
           <div className="space-y-2">
@@ -207,10 +293,17 @@ export function SubmitPage() {
               >
                 <ImageIcon className="size-5" />
                 <span className="text-xs">Click to upload image or video</span>
-                <span className="text-xs text-muted-foreground/60">Max 10MB</span>
+                <span className="text-xs text-muted-foreground/60">Images: 10MB max | Videos: 50MB max</span>
               </button>
             )}
-            <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleFileChange} className="hidden" />
+            {mediaError && <p className="text-xs text-destructive">{mediaError}</p>}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,video/mp4,video/webm"
+              onChange={handleFileChange}
+              className="hidden"
+            />
           </div>
 
           <div className="space-y-2">
@@ -234,8 +327,19 @@ export function SubmitPage() {
           {error && <p className="text-xs text-destructive">{error}</p>}
 
           <div className="flex items-center gap-3 pt-2">
-            <Button type="submit" disabled={submitting || !title.trim()} className="h-9 text-sm">
-              {submitting ? "Publishing..." : "Publish to feed"}
+            <Button
+              type="submit"
+              disabled={submitting || !isValid}
+              className="h-9 text-sm"
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin mr-2" />
+                  Publishing...
+                </>
+              ) : (
+                "Publish to feed"
+              )}
             </Button>
             <Link to="/">
               <Button type="button" variant="ghost" size="sm" className="h-9 text-sm text-muted-foreground">

@@ -21,6 +21,7 @@ import { Footer } from "@/components/Footer"
 import { supabase, type Post } from "@/lib/supabase"
 import { TAG_COLORS } from "@/lib/tag-colors"
 import { useAuth } from "@/hooks/use-auth"
+import { getSignedUrl } from "@/lib/media-upload"
 
 export function ProfilePage() {
   const { user, displayName, loading: authLoading } = useAuth()
@@ -28,6 +29,9 @@ export function ProfilePage() {
 
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Signed URLs map
+  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({})
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -46,6 +50,21 @@ export function ProfilePage() {
         .order("created_at", { ascending: false })
 
       setPosts(data ?? [])
+
+      // Get signed URLs for private media
+      if (data) {
+        const urlMap: Record<string, string> = {}
+        for (const post of data) {
+          if (post.media_url && !post.media_url.startsWith("http")) {
+            const signedUrl = await getSignedUrl(post.media_url)
+            if (signedUrl) {
+              urlMap[post.id] = signedUrl
+            }
+          }
+        }
+        setSignedUrls(urlMap)
+      }
+
       setLoading(false)
     }
 
@@ -53,6 +72,12 @@ export function ProfilePage() {
   }, [user])
 
   async function deletePost(postId: string) {
+    // Get the post to find media URL
+    const post = posts.find(p => p.id === postId)
+    if (post?.media_url && !post.media_url.startsWith("http")) {
+      await supabase.storage.from("media-media").remove([post.media_url])
+    }
+
     await supabase.from("posts").delete().eq("id", postId)
     setPosts((prev) => prev.filter((p) => p.id !== postId))
   }
@@ -106,6 +131,25 @@ export function ProfilePage() {
                     <p className="text-sm font-medium text-foreground leading-snug line-clamp-2">
                       {post.title}
                     </p>
+                    {post.media_url && (
+                      <div className="mt-2 rounded-md overflow-hidden border border-border/50 max-h-32 inline-block">
+                        {post.media_url.match(/\.(mp4|webm|ogg)$/i) ? (
+                          <video
+                            src={signedUrls[post.id] || post.media_url}
+                            className="w-auto max-h-32 object-contain"
+                            muted
+                            preload="metadata"
+                          />
+                        ) : (
+                          <img
+                            src={signedUrls[post.id] || post.media_url}
+                            alt={post.title}
+                            className="w-auto max-h-32 object-contain"
+                            loading="lazy"
+                          />
+                        )}
+                      </div>
+                    )}
                     <p className="text-xs text-muted-foreground mt-1.5">
                       {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
                     </p>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { useParams, Link, useNavigate } from "react-router-dom"
-import { ArrowLeft, MessageSquare, Trash2, Sparkles, Loader2 } from "lucide-react"
+import { ArrowLeft, MessageSquare, Trash2, Sparkles, Loader as Loader2, Clock } from "lucide-react"
 import { formatDistanceToNow, format } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -24,11 +24,16 @@ import { Footer } from "@/components/Footer"
 import { supabase, type Post, type Comment } from "@/lib/supabase"
 import { TAG_COLORS } from "@/lib/tag-colors"
 import { useAuth } from "@/hooks/use-auth"
+import { useRateLimit, formatRateLimitMessage } from "@/hooks/use-rate-limit"
+import { sanitizeComment } from "@/lib/sanitize"
+import { getSignedUrl } from "@/lib/media-upload"
+import { cn } from "@/lib/utils"
 
 export function PostDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { user, displayName } = useAuth()
+  const { limited: commentRateLimited, getTimeUntilReset, checkRateLimit } = useRateLimit()
 
   const [post, setPost] = useState<Post | null>(null)
   const [comments, setComments] = useState<Comment[]>([])
@@ -39,11 +44,19 @@ export function PostDetailPage() {
   const [commentAuthor, setCommentAuthor] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [commentError, setCommentError] = useState<string | null>(null)
+  const [commentValidationError, setCommentValidationError] = useState<string | null>(null)
 
   const [explanation, setExplanation] = useState<string | null>(null)
   const [explaining, setExplaining] = useState(false)
   const [explainError, setExplainError] = useState<string | null>(null)
   const [explainOpen, setExplainOpen] = useState(false)
+
+  const [signedMediaUrl, setSignedMediaUrl] = useState<string | null>(null)
+
+  // Check rate limit on mount
+  useEffect(() => {
+    checkRateLimit("comment")
+  }, [checkRateLimit])
 
   async function fetchExplanation(currentPost: Post) {
     setExplaining(true)
@@ -95,6 +108,12 @@ export function PostDetailPage() {
         return
       }
 
+      // Get signed URL for media
+      if (postData.media_url && !postData.media_url.startsWith("http")) {
+        const signedUrl = await getSignedUrl(postData.media_url)
+        setSignedMediaUrl(signedUrl)
+      }
+
       const { data: commentData } = await supabase
         .from("comments")
         .select("*")
@@ -109,20 +128,54 @@ export function PostDetailPage() {
     load()
   }, [id])
 
+  // Validate comment on change
+  useEffect(() => {
+    if (commentContent) {
+      const result = sanitizeComment(commentContent)
+      setCommentValidationError(result.valid ? null : result.error)
+    } else {
+      setCommentValidationError(null)
+    }
+  }, [commentContent])
+
   async function handleCommentSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!commentContent.trim() || !id) return
+
+    const contentResult = sanitizeComment(commentContent)
+    if (!contentResult.valid) {
+      setCommentValidationError(contentResult.error)
+      return
+    }
+
+    if (!id || commentRateLimited) return
+
+    // Check rate limit again
+    const rateCheck = await checkRateLimit("comment")
+    if (!rateCheck.allowed) {
+      setCommentError(formatRateLimitMessage("comment", getTimeUntilReset()))
+      return
+    }
 
     setSubmitting(true)
     setCommentError(null)
+
+    // Get user's privacy preference
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("show_real_name")
+      .eq("user_id", user?.id)
+      .maybeSingle()
+
+    const showAnonymous = profile ? !profile.show_real_name : false
 
     const { data, error: insertError } = await supabase
       .from("comments")
       .insert({
         post_id: id,
-        content: commentContent.trim(),
-        author_name: commentAuthor.trim() || null,
+        content: contentResult.value,
+        author_name: showAnonymous ? null : (commentAuthor.trim() || null),
         user_id: user?.id ?? null,
+        show_anonymous: showAnonymous,
       })
       .select()
       .single()
@@ -141,6 +194,12 @@ export function PostDetailPage() {
 
   async function handleDeletePost() {
     if (!post) return
+
+    // Delete media file if exists
+    if (post.media_url && !post.media_url.startsWith("http")) {
+      await supabase.storage.from("media-media").remove([post.media_url])
+    }
+
     await supabase.from("posts").delete().eq("id", post.id)
     navigate("/")
   }
@@ -152,6 +211,14 @@ export function PostDetailPage() {
 
   const canDeletePost = !!user && post?.user_id === user.id
   const canDeleteComment = (comment: Comment) => !!user && comment.user_id === user.id
+
+  // Determine display name based on privacy settings
+  const getDisplayName = (authorName: string | null, showAnonymous: boolean = false) => {
+    if (showAnonymous || !authorName) return "Anonymous"
+    return authorName.trim() || "Anonymous"
+  }
+
+  const mediaUrl = signedMediaUrl || post?.media_url
 
   if (loading) {
     return (
@@ -180,9 +247,11 @@ export function PostDetailPage() {
     )
   }
 
-  const author = post.author_name?.trim() || "Anonymous"
+  const author = getDisplayName(post.author_name, post.show_anonymous)
   const timeAgo = formatDistanceToNow(new Date(post.created_at), { addSuffix: true })
   const fullDate = format(new Date(post.created_at), "MMM d, yyyy 'at' h:mm a")
+
+  const isVideoMedia = post.media_url?.match(/\.(mp4|webm|ogg)$/i)
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -248,12 +317,12 @@ export function PostDetailPage() {
             </p>
           )}
 
-          {post.media_url && (
+          {mediaUrl && (
             <div className="rounded-lg overflow-hidden border border-border/50 mb-4">
-              {post.media_url.match(/\.(mp4|webm|ogg)$/i) ? (
-                <video src={post.media_url} controls className="w-full max-h-96 object-contain bg-black" />
+              {isVideoMedia ? (
+                <video src={mediaUrl} controls className="w-full max-h-96 object-contain bg-black" />
               ) : (
-                <img src={post.media_url} alt={post.title} className="w-full max-h-96 object-contain" />
+                <img src={mediaUrl} alt={post.title} className="w-full max-h-96 object-contain" />
               )}
             </div>
           )}
@@ -326,7 +395,7 @@ export function PostDetailPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-2 mb-1">
                       <span className="text-xs font-medium text-foreground/80">
-                        {comment.author_name?.trim() || "Anonymous"}
+                        {getDisplayName(comment.author_name, comment.show_anonymous)}
                       </span>
                       <span className="text-xs text-muted-foreground/60">
                         {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
@@ -360,23 +429,53 @@ export function PostDetailPage() {
               maxLength={64}
               readOnly={!!user}
             />
-            <Textarea
-              placeholder="Leave a comment..."
-              value={commentContent}
-              onChange={(e) => setCommentContent(e.target.value)}
-              className="bg-transparent text-sm resize-none min-h-20"
-              maxLength={2000}
-              required
-            />
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Comment</span>
+                <span className={`text-xs tabular-nums ${commentContent.length >= 450 ? "text-yellow-500" : "text-muted-foreground/40"}`}>
+                  {commentContent.length}/500
+                </span>
+              </div>
+              <Textarea
+                placeholder="Leave a comment..."
+                value={commentContent}
+                onChange={(e) => setCommentContent(e.target.value)}
+                className={cn(
+                  "bg-transparent text-sm resize-none min-h-20",
+                  commentValidationError && "border-destructive"
+                )}
+                maxLength={500}
+                required
+              />
+              {commentValidationError && (
+                <p className="text-xs text-destructive">{commentValidationError}</p>
+              )}
+            </div>
+
+            {commentRateLimited && (
+              <div className="flex items-center gap-2 text-xs text-yellow-500">
+                <Clock className="size-3" />
+                {formatRateLimitMessage("comment", getTimeUntilReset())}
+              </div>
+            )}
+
             {commentError && <p className="text-xs text-destructive">{commentError}</p>}
+
             <div className="flex justify-end">
               <Button
                 type="submit"
                 size="sm"
-                disabled={submitting || !commentContent.trim()}
+                disabled={submitting || !commentContent.trim() || !!commentValidationError || commentRateLimited}
                 className="h-8 text-xs"
               >
-                {submitting ? "Posting..." : "Post comment"}
+                {submitting ? (
+                  <>
+                    <Loader2 className="size-3 animate-spin mr-1.5" />
+                    Posting...
+                  </>
+                ) : (
+                  "Post comment"
+                )}
               </Button>
             </div>
           </form>
