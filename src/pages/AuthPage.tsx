@@ -464,12 +464,20 @@ export function AuthPage() {
                     onChange={(e) => setTermsAccepted(e.target.checked)}
                     className="mt-0.5 size-4 rounded border-border"
                   />
-                  <span className="text-xs text-muted-foreground">
-                    I agree to the{" "}
-                    <Link to="/terms" className="underline hover:text-foreground">Terms of Service</Link>,{" "}
-                    <Link to="/privacy" className="underline hover:text-foreground">Privacy Policy</Link>, and{" "}
-                    <Link to="/cookies" className="underline hover:text-foreground">Cookie Policy</Link>.
-                  </span>
+                  <div className="space-y-1">
+                    <span className="text-xs text-muted-foreground">
+                      I agree to the{" "}
+                      <Link to="/terms" className="underline hover:text-foreground">Terms of Service</Link>,{" "}
+                      <Link to="/privacy" className="underline hover:text-foreground">Privacy Policy</Link>, and{" "}
+                      <Link to="/cookies" className="underline hover:text-foreground">Cookie Policy</Link>.
+                    </span>
+                    <p className="text-[10px] text-muted-foreground/60">
+                      You also agree to our{" "}
+                      <Link to="/guidelines" className="underline hover:text-muted-foreground">Community Guidelines</Link>,{" "}
+                      <Link to="/copyright" className="underline hover:text-muted-foreground">Copyright Policy</Link>, and{" "}
+                      <Link to="/aup" className="underline hover:text-muted-foreground">Acceptable Use Policy</Link>.
+                    </p>
+                  </div>
                 </label>
 
                 {signUpError && (

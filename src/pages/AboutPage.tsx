@@ -17,85 +17,27 @@ export function AboutPage() {
           Feed
         </Link>
 
-        <div className="space-y-8">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight mb-4">About BuildBoard</h1>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              BuildBoard is a live public feed where builders and creators share what they're
-              working on — no polish required. Share your project at any stage, connect with
-              fellow creators, and discover what others are building in real time.
+        <div className="space-y-6">
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            BuildBoard started because sharing what you're building shouldn't require a following, an audience, or an algorithm's approval.
+          </p>
+
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Every day, thousands of people are making things — writing code at midnight, sketching designs on their lunch break, recording music in their bedroom, building something from nothing. Most of it never gets seen. Not because it isn't worth seeing, but because every existing platform rewards what's already popular.
+          </p>
+
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            BuildBoard is different. There's no algorithm deciding who gets seen. No follower count gatekeeping your reach. No polished final product required. Just a live feed of real people, building real things, in real time.
+          </p>
+
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Post what you're working on today. See what others are making right now. Ask questions. Get curious. That's it.
+          </p>
+
+          <div className="border-t border-border/50 pt-6">
+            <p className="text-xs text-muted-foreground/60">
+              Built by one person who believed the process deserves as much attention as the finished product.
             </p>
-          </div>
-
-          <div className="border-t border-border/50 pt-8">
-            <h2 className="text-sm font-semibold mb-3 text-foreground">What makes BuildBoard different</h2>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li className="flex items-start gap-2">
-                <span className="text-foreground/40 shrink-0 mt-0.5">—</span>
-                Share your work in progress, finished projects, or just ideas
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-foreground/40 shrink-0 mt-0.5">—</span>
-                No account required to post or comment
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-foreground/40 shrink-0 mt-0.5">—</span>
-                AI-powered plain English explanations for technical posts
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-foreground/40 shrink-0 mt-0.5">—</span>
-                Organize your posts with tags: Code, Design, Music, Art, Writing, Game, Other
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-foreground/40 shrink-0 mt-0.5">—</span>
-                Create a public profile to showcase your work
-              </li>
-            </ul>
-          </div>
-
-          <div className="border-t border-border/50 pt-8">
-            <h2 className="text-sm font-semibold mb-3 text-foreground">For thecommunity</h2>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              BuildBoard is built for anyone who creates — developers, designers, musicians,
-              artists, writers, game developers, and everyone in between. Whether you're
-              building a side project, working on your craft, or just sharing something
-              cool, this is your space to connect.
-            </p>
-          </div>
-
-          <div className="border-t border-border/50 pt-8">
-            <h2 className="text-sm font-semibold mb-3 text-foreground">Privacy & Safety</h2>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li className="flex items-start gap-2">
-                <span className="text-foreground/40 shrink-0 mt-0.5">—</span>
-                Post anonymously or with your identity
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-foreground/40 shrink-0 mt-0.5">—</span>
-                Control your profile visibility and privacy settings
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-foreground/40 shrink-0 mt-0.5">—</span>
-                Block and report users who violate our community standards
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-foreground/40 shrink-0 mt-0.5">—</span>
-                Automated content moderation to keep the feed clean
-              </li>
-            </ul>
-          </div>
-
-          <div className="border-t border-border/50 pt-8">
-            <h2 className="text-sm font-semibold mb-3 text-foreground">Open & Accessible</h2>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              We believe the best communities are open to everyone. That's why you can
-              browse, post, and comment without creating an account. Sign up only if you
-              want a persistent identity and profile.
-            </p>
-          </div>
-
-          <div className="border-t border-border/50 pt-8">
-            <p className="text-xs text-muted-foreground/60">Built for builders, by builders.</p>
           </div>
         </div>
       </main>

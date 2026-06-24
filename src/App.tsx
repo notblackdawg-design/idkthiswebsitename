@@ -12,6 +12,9 @@ import { SettingsPage } from "@/pages/SettingsPage"
 import { TermsPage } from "@/pages/TermsPage"
 import { PrivacyPage } from "@/pages/PrivacyPage"
 import { CookiesPage } from "@/pages/CookiesPage"
+import { GuidelinesPage } from "@/pages/GuidelinesPage"
+import { CopyrightPage } from "@/pages/CopyrightPage"
+import { AupPage } from "@/pages/AupPage"
 
 export function App() {
   return (
@@ -30,6 +33,9 @@ export function App() {
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/cookies" element={<CookiesPage />} />
+          <Route path="/guidelines" element={<GuidelinesPage />} />
+          <Route path="/copyright" element={<CopyrightPage />} />
+          <Route path="/aup" element={<AupPage />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>
