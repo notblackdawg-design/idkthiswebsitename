@@ -113,9 +113,20 @@ export function SubmitPage() {
       return
     }
 
-    // Moderate content
+    // Moderate content (text + image if present)
     const contentToModerate = `${title}${description ? ` ${description}` : ""}`
     const { data: { session } } = await supabase.auth.getSession()
+
+    let imageData: string | null = null
+    if (mediaFile) {
+      // Convert file to base64 data URL for moderation
+      imageData = await new Promise<string>((resolve) => {
+        const reader = new FileReader()
+        reader.onloadend = () => resolve(reader.result as string)
+        reader.readAsDataURL(mediaFile)
+      })
+    }
+
     const modRes = await fetch(
       `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/moderate-content`,
       {
@@ -125,7 +136,7 @@ export function SubmitPage() {
           "Authorization": `Bearer ${session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           "Apikey": import.meta.env.VITE_SUPABASE_ANON_KEY,
         },
-        body: JSON.stringify({ content: contentToModerate }),
+        body: JSON.stringify({ content: contentToModerate, imageData }),
       }
     )
     const modResult = await modRes.json()

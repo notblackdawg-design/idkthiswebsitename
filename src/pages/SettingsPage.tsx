@@ -251,6 +251,33 @@ export function SettingsPage() {
       return
     }
 
+    // Moderate image with OpenAI
+    const imageData = await new Promise<string>((resolve) => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(reader.result as string)
+      reader.readAsDataURL(file)
+    })
+
+    const { data: { session } } = await supabase.auth.getSession()
+    const modRes = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/moderate-content`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          "Apikey": import.meta.env.VITE_SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({ imageData }),
+      }
+    )
+    const modResult = await modRes.json()
+
+    if (!modResult.allowed) {
+      setAvatarError(modResult.reason || "Image violates our guidelines")
+      return
+    }
+
     setAvatarFile(file)
     setAvatarPreview(URL.createObjectURL(file))
   }

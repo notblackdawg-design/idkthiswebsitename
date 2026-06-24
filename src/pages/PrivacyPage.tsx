@@ -93,17 +93,22 @@ export function PrivacyPage() {
             Our platform may contain links to third-party websites or services. We are not responsible for the privacy practices of these external sites. We encourage you to review their privacy policies.
           </p>
 
-          <h2 className="text-lg font-medium text-foreground">9. Children's Privacy</h2>
+          <h2 className="text-lg font-medium text-foreground">9. Content Moderation</h2>
+          <p className="text-sm text-muted-foreground leading-relaxed mb-4">
+            All post text, comment text, and uploaded images are sent to OpenAI's Moderation API before being saved to detect and prevent harmful content. Only the content itself is sent — no personal account information is included. This helps us maintain a safe and welcoming community for all users.
+          </p>
+
+          <h2 className="text-lg font-medium text-foreground">10. Children's Privacy</h2>
           <p className="text-sm text-muted-foreground leading-relaxed mb-4">
             BuildBoard is not intended for children under 13 years of age. We do not knowingly collect personal information from children under 13. If you believe a child under 13 has provided us with personal information, please contact us.
           </p>
 
-          <h2 className="text-lg font-medium text-foreground">10. Changes to This Policy</h2>
+          <h2 className="text-lg font-medium text-foreground">11. Changes to This Policy</h2>
           <p className="text-sm text-muted-foreground leading-relaxed mb-4">
             We may update this privacy policy from time to time. We will notify you of any changes by posting the new policy on this page and updating the "Last updated" date.
           </p>
 
-          <h2 className="text-lg font-medium text-foreground">11. Contact Us</h2>
+          <h2 className="text-lg font-medium text-foreground">12. Contact Us</h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
             If you have questions about this Privacy Policy, please contact us through our platform.
           </p>

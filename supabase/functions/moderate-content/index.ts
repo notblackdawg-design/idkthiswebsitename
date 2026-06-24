@@ -7,15 +7,24 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-const REJECT_THRESHOLD = 0.85;
-const FLAG_THRESHOLD = 0.70;
-
 interface ModerationResult {
   allowed: boolean;
   flagged: boolean;
   reason?: string;
-  scores?: Record<string, number>;
+  categories?: string[];
 }
+
+const REJECT_CATEGORIES = [
+  "hate",
+  "hate/threatening",
+  "harassment",
+  "harassment/threatening",
+  "violence",
+  "sexual",
+  "self-harm",
+  "self-harm/intent",
+  "self-harm/instructions",
+];
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -23,49 +32,44 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { content } = await req.json();
-
-    if (!content?.trim()) {
-      return new Response(JSON.stringify({
-        error: "Content is required"
-      }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const body = await req.json();
+    const { content, imageData } = body;
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Check banned words first (lower priority, no API cost)
-    const { data: bannedWords } = await supabase
-      .from("banned_words")
-      .select("word")
-      .eq("is_active", true);
+    // Check banned words first (no API cost)
+    if (content?.trim()) {
+      const { data: bannedWords } = await supabase
+        .from("banned_words")
+        .select("word")
+        .eq("is_active", true);
 
-    if (bannedWords && bannedWords.length > 0) {
-      const lowerContent = content.toLowerCase();
-      const matchedWord = bannedWords.find((w) =>
-        lowerContent.includes(w.word.toLowerCase())
-      );
+      if (bannedWords && bannedWords.length > 0) {
+        const lowerContent = content.toLowerCase();
+        const matchedWord = bannedWords.find((w) =>
+          lowerContent.includes(w.word.toLowerCase())
+        );
 
-      if (matchedWord) {
-        return new Response(JSON.stringify({
-          allowed: false,
-          flagged: false,
-          reason: "Content contains prohibited language"
-        } as ModerationResult), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        if (matchedWord) {
+          return new Response(JSON.stringify({
+            allowed: false,
+            flagged: false,
+            reason: "Your content violates our community guidelines. Please revise it."
+          } as ModerationResult), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
       }
     }
 
-    // Check Perspective API if configured
-    const perspectiveKey = Deno.env.get("PERSPECTIVE_API_KEY");
-    if (!perspectiveKey) {
-      // No API key, allow content
+    // Check OpenAI Moderation API if configured
+    const openaiKey = Deno.env.get("OPENAI_API_KEY");
+    if (!openaiKey) {
+      // No API key, allow content (fail open)
+      console.error("OPENAI_API_KEY not configured in edge function secrets");
       return new Response(JSON.stringify({
         allowed: true,
         flagged: false
@@ -74,28 +78,49 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Call Perspective API
-    const perspectiveRes = await fetch(
-      `https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze?key=${perspectiveKey}`,
+    // Build input array for moderation
+    const inputs: Array<{ type: string; text?: string; image_url?: { url: string } }> = [];
+
+    // Add text content if provided
+    if (content?.trim()) {
+      inputs.push({ type: "text", text: content.trim() });
+    }
+
+    // Add image if provided (base64 data URL)
+    if (imageData) {
+      inputs.push({
+        type: "image_url",
+        image_url: { url: imageData }
+      });
+    }
+
+    if (inputs.length === 0) {
+      return new Response(JSON.stringify({
+        allowed: true,
+        flagged: false
+      } as ModerationResult), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Call OpenAI Moderation API
+    const moderationRes = await fetch(
+      "https://api.openai.com/v1/moderations",
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${openaiKey}`,
+        },
         body: JSON.stringify({
-          comment: { text: content },
-          requestedAttributes: {
-            TOXICITY: {},
-            SEVERE_TOXICITY: {},
-            IDENTITY_ATTACK: {},
-            INSULT: {},
-            THREAT: {},
-          },
-          languages: ["en"],
+          model: "omni-moderation-latest",
+          input: inputs,
         }),
       }
     );
 
-    if (!perspectiveRes.ok) {
-      console.error("Perspective API error:", await perspectiveRes.text());
+    if (!moderationRes.ok) {
+      console.error("OpenAI Moderation API error:", await moderationRes.text());
       // Fail open - allow content if API unavailable
       return new Response(JSON.stringify({
         allowed: true,
@@ -105,40 +130,43 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const perspectiveData = await perspectiveRes.json();
-    const scores: Record<string, number> = {};
+    const moderationData = await moderationRes.json();
+    const results = moderationData.results || [];
 
-    for (const [attr, data] of Object.entries(perspectiveData.attributeScores || {})) {
-      scores[attr] = (data as any)?.summaryScore?.value || 0;
+    // Check if any results are flagged for our reject categories
+    const flaggedCategories: string[] = [];
+    let shouldReject = false;
+
+    for (const result of results) {
+      if (result.flagged) {
+        const categories = result.categories || {};
+        const categoryScores = result.category_scores || result.category_applied_input_types || {};
+
+        for (const category of REJECT_CATEGORIES) {
+          if (categories[category] === true) {
+            flaggedCategories.push(category);
+            shouldReject = true;
+          }
+        }
+      }
     }
 
-    const maxScore = Math.max(...Object.values(scores), 0);
-
-    if (maxScore >= REJECT_THRESHOLD) {
+    if (shouldReject) {
       return new Response(JSON.stringify({
         allowed: false,
-        flagged: false,
-        reason: "Content appears to violate our guidelines",
-        scores
-      } as ModerationResult), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    if (maxScore >= FLAG_THRESHOLD) {
-      return new Response(JSON.stringify({
-        allowed: true,
         flagged: true,
-        scores
+        reason: "Your content violates our community guidelines. Please revise it.",
+        categories: flaggedCategories
       } as ModerationResult), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    // Content passed moderation
     return new Response(JSON.stringify({
       allowed: true,
-      flagged: false,
-      scores
+      flagged: flaggedCategories.length > 0,
+      categories: flaggedCategories.length > 0 ? flaggedCategories : undefined
     } as ModerationResult), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
