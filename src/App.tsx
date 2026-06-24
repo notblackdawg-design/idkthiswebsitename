@@ -5,8 +5,13 @@ import { PostDetailPage } from "@/pages/PostDetailPage"
 import { SubmitPage } from "@/pages/SubmitPage"
 import { AuthPage } from "@/pages/AuthPage"
 import { ProfilePage } from "@/pages/ProfilePage"
+import { PublicProfilePage } from "@/pages/PublicProfilePage"
+import { SearchPage } from "@/pages/SearchPage"
 import { AboutPage } from "@/pages/AboutPage"
 import { SettingsPage } from "@/pages/SettingsPage"
+import { TermsPage } from "@/pages/TermsPage"
+import { PrivacyPage } from "@/pages/PrivacyPage"
+import { CookiesPage } from "@/pages/CookiesPage"
 
 export function App() {
   return (
@@ -18,8 +23,13 @@ export function App() {
           <Route path="/submit" element={<SubmitPage />} />
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/profile/:username" element={<PublicProfilePage />} />
+          <Route path="/search" element={<SearchPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/cookies" element={<CookiesPage />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

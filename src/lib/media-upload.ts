@@ -19,6 +19,10 @@ const MAX_IMAGE_SIZE = 10 * 1024 * 1024 // 10MB
 const MAX_VIDEO_SIZE = 50 * 1024 * 1024 // 50MB
 const MAX_AVATAR_SIZE = 5 * 1024 * 1024 // 5MB
 
+// Media bucket name in Supabase
+const MEDIA_BUCKET = 'media-media'
+const AVATAR_BUCKET = 'avatars'
+
 export interface MediaValidationResult {
   valid: boolean
   error?: string
@@ -37,32 +41,38 @@ export interface UploadResult {
  * Validate file by reading magic bytes signature
  */
 export async function validateFileSignature(file: File): Promise<MediaValidationResult> {
-  // Read first 16 bytes for signature check
-  const buffer = await file.slice(0, 16).arrayBuffer()
-  const bytes = new Uint8Array(buffer)
+  try {
+    const buffer = await file.slice(0, 16).arrayBuffer()
+    const bytes = new Uint8Array(buffer)
 
-  for (const [mimeType, signatures] of Object.entries(FILE_SIGNATURES)) {
-    for (const sig of signatures) {
-      let match = true
-      for (let i = 0; i < sig.length; i++) {
-        if (bytes[i] !== sig[i]) {
-          match = false
-          break
+    for (const [mimeType, signatures] of Object.entries(FILE_SIGNATURES)) {
+      for (const sig of signatures) {
+        let match = true
+        for (let i = 0; i < sig.length; i++) {
+          if (bytes[i] !== sig[i]) {
+            match = false
+            break
+          }
         }
-      }
-      if (match) {
-        return {
-          valid: true,
-          type: mimeType,
-          isVideo: ALLOWED_VIDEO_TYPES.includes(mimeType),
+        if (match) {
+          return {
+            valid: true,
+            type: mimeType,
+            isVideo: ALLOWED_VIDEO_TYPES.includes(mimeType),
+          }
         }
       }
     }
-  }
 
-  return {
-    valid: false,
-    error: 'File type not allowed. Please upload images (jpg, png, webp, gif) or videos (mp4, webm) only.',
+    return {
+      valid: false,
+      error: 'File type not allowed. Please upload images (jpg, png, webp, gif) or videos (mp4, webm) only.',
+    }
+  } catch {
+    return {
+      valid: false,
+      error: 'Failed to validate file. Please try again.',
+    }
   }
 }
 
@@ -70,7 +80,6 @@ export async function validateFileSignature(file: File): Promise<MediaValidation
  * Validate media file for posts
  */
 export async function validateMediaFile(file: File): Promise<MediaValidationResult> {
-  // Check file size first
   const isVideo = file.type.startsWith('video/')
   const maxSize = isVideo ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE
 
@@ -81,13 +90,11 @@ export async function validateMediaFile(file: File): Promise<MediaValidationResu
     }
   }
 
-  // Validate file signature
   const signatureResult = await validateFileSignature(file)
   if (!signatureResult.valid) {
     return signatureResult
   }
 
-  // Ensure detected type matches declared type
   if (signatureResult.type && !ALLOWED_TYPES.includes(signatureResult.type)) {
     return {
       valid: false,
@@ -132,7 +139,7 @@ export async function validateAvatarFile(file: File): Promise<MediaValidationRes
 }
 
 /**
- * Upload media to private bucket and return signed URL
+ * Upload media to bucket and return path
  */
 export async function uploadMedia(
   file: File,
@@ -149,11 +156,11 @@ export async function uploadMedia(
     }
 
     const ext = file.name.split('.').pop() || 'bin'
+    const bucket = folder === 'avatars' ? AVATAR_BUCKET : MEDIA_BUCKET
     const fileName = `${folder}/${userId}/${crypto.randomUUID()}.${ext}`
 
-    // Upload to private bucket
     const { error: uploadError } = await supabase.storage
-      .from('media-media')
+      .from(bucket)
       .upload(fileName, file, {
         contentType: validation.type,
         upsert: false,
@@ -166,10 +173,11 @@ export async function uploadMedia(
 
     // Generate signed URL valid for 1 hour
     const { data: signedUrlData, error: signedUrlError } = await supabase.storage
-      .from('media-media')
+      .from(bucket)
       .createSignedUrl(fileName, 3600)
 
     if (signedUrlError || !signedUrlData) {
+      console.error('Signed URL error:', signedUrlError)
       return { success: false, error: 'Failed to generate file URL.' }
     }
 
@@ -187,9 +195,10 @@ export async function uploadMedia(
 /**
  * Get signed URL for viewing media
  */
-export async function getSignedUrl(path: string): Promise<string | null> {
+export async function getSignedUrl(path: string, folder: 'posts' | 'avatars' = 'posts'): Promise<string | null> {
+  const bucket = folder === 'avatars' ? AVATAR_BUCKET : MEDIA_BUCKET
   const { data } = await supabase.storage
-    .from('media-media')
+    .from(bucket)
     .createSignedUrl(path, 3600)
 
   return data?.signedUrl || null
@@ -198,9 +207,10 @@ export async function getSignedUrl(path: string): Promise<string | null> {
 /**
  * Delete media file
  */
-export async function deleteMedia(path: string): Promise<boolean> {
+export async function deleteMedia(path: string, folder: 'posts' | 'avatars' = 'posts'): Promise<boolean> {
+  const bucket = folder === 'avatars' ? AVATAR_BUCKET : MEDIA_BUCKET
   const { error } = await supabase.storage
-    .from('media-media')
+    .from(bucket)
     .remove([path])
 
   return !error

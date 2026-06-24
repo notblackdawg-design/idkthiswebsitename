@@ -40,12 +40,26 @@ interface Profile {
   display_name: string | null
   bio: string | null
   avatar_url: string | null
+  pronouns: string | null
+  github_url: string | null
+  youtube_url: string | null
+  twitter_url: string | null
+  instagram_url: string | null
+  linkedin_url: string | null
+  website_url: string | null
   profile_public: boolean
   show_real_name: boolean
+  default_anonymous: boolean
   email_notifications: boolean
   weekly_digest: boolean
   created_at: string
   updated_at: string
+}
+
+interface BlockedUser {
+  id: string
+  blocked_id: string
+  profiles: { display_name: string | null; avatar_url: string | null }
 }
 
 type SettingsTab = "profile" | "account" | "appearance" | "notifications" | "privacy"
@@ -68,6 +82,13 @@ export function SettingsPage() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const [pronouns, setPronouns] = useState("")
+  const [githubUrl, setGithubUrl] = useState("")
+  const [youtubeUrl, setYoutubeUrl] = useState("")
+  const [twitterUrl, setTwitterUrl] = useState("")
+  const [instagramUrl, setInstagramUrl] = useState("")
+  const [linkedinUrl, setLinkedinUrl] = useState("")
+  const [websiteUrl, setWebsiteUrl] = useState("")
 
   // Account state
   const [currentPassword, setCurrentPassword] = useState("")
@@ -84,6 +105,10 @@ export function SettingsPage() {
   // Privacy state
   const [profilePublic, setProfilePublic] = useState(true)
   const [showRealName, setShowRealName] = useState(true)
+  const [defaultAnonymous, setDefaultAnonymous] = useState(false)
+
+  // Blocked users
+  const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([])
 
   // Notification state
   const [emailNotifications, setEmailNotifications] = useState(false)
@@ -134,33 +159,53 @@ export function SettingsPage() {
     if (!user) return
 
     async function loadProfile() {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("profiles")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("user_id", user!.id)
         .maybeSingle()
 
       if (data) {
         setProfile(data)
         setDisplayName(data.display_name || "")
         setBio(data.bio || "")
-        setAvatarUrl(data.avatar_url)
+        setAvatarUrl(data.avatar_url ?? null)
+        setPronouns(data.pronouns || "")
+        setGithubUrl(data.github_url || "")
+        setYoutubeUrl(data.youtube_url || "")
+        setTwitterUrl(data.twitter_url || "")
+        setInstagramUrl(data.instagram_url || "")
+        setLinkedinUrl(data.linkedin_url || "")
+        setWebsiteUrl(data.website_url || "")
         setProfilePublic(data.profile_public)
         setShowRealName(data.show_real_name)
+        setDefaultAnonymous(data.default_anonymous || false)
         setEmailNotifications(data.email_notifications)
         setWeeklyDigest(data.weekly_digest)
       }
       setLoadingProfile(false)
     }
 
+    async function loadBlockedUsers() {
+      const { data } = await supabase
+        .from("blocks")
+        .select("id, blocked_id, profiles!blocked_id(display_name, avatar_url)")
+        .eq("blocker_id", user!.id)
+
+      if (data) {
+        setBlockedUsers(data as unknown as BlockedUser[])
+      }
+    }
+
     loadProfile()
+    loadBlockedUsers()
   }, [user])
 
   // Validation on change
   useEffect(() => {
     if (displayName) {
       const result = validateDisplayName(displayName)
-      setDisplayNameError(result.valid ? null : result.error)
+      setDisplayNameError(result.valid ? null : (result.error ?? null))
     } else {
       setDisplayNameError(null)
     }
@@ -169,7 +214,7 @@ export function SettingsPage() {
   useEffect(() => {
     if (bio) {
       const result = sanitizeBio(bio)
-      setBioError(result.valid ? null : result.error)
+      setBioError(result.valid ? null : (result.error ?? null))
     } else {
       setBioError(null)
     }
@@ -178,7 +223,7 @@ export function SettingsPage() {
   useEffect(() => {
     if (newPassword) {
       const result = validatePassword(newPassword)
-      setNewPasswordError(result.valid ? null : result.error)
+      setNewPasswordError(result.valid ? null : (result.error ?? null))
       setPasswordStrength(result.strength)
     } else {
       setNewPasswordError(null)
@@ -189,7 +234,7 @@ export function SettingsPage() {
   useEffect(() => {
     if (newEmail) {
       const result = validateEmail(newEmail)
-      setNewEmailError(result.valid ? null : result.error)
+      setNewEmailError(result.valid ? null : (result.error ?? null))
     } else {
       setNewEmailError(null)
     }
@@ -228,8 +273,8 @@ export function SettingsPage() {
         setSavingProfile(false)
         return
       }
-      avatarPath = uploadResult.url
-      setAvatarUrl(uploadResult.signedUrl || null)
+      avatarPath = uploadResult.url ?? null
+      setAvatarUrl(uploadResult.signedUrl ?? null)
     }
 
     const sanitizedName = displayName ? sanitizeText(displayName).trim() : null
@@ -242,6 +287,13 @@ export function SettingsPage() {
         display_name: sanitizedName,
         bio: sanitizedBio,
         avatar_url: avatarPath,
+        pronouns: pronouns.trim() || null,
+        github_url: githubUrl.trim() || null,
+        youtube_url: youtubeUrl.trim() || null,
+        twitter_url: twitterUrl.trim() || null,
+        instagram_url: instagramUrl.trim() || null,
+        linkedin_url: linkedinUrl.trim() || null,
+        website_url: websiteUrl.trim() || null,
         updated_at: new Date().toISOString(),
       })
       .eq("user_id", user.id)
@@ -405,8 +457,40 @@ export function SettingsPage() {
       .update({
         profile_public: profilePublic,
         show_real_name: showRealName,
+        default_anonymous: defaultAnonymous,
       })
       .eq("user_id", user.id)
+  }
+
+  async function handleUnblock(blockId: string) {
+    await supabase.from("blocks").delete().eq("id", blockId)
+    setBlockedUsers((prev) => prev.filter((b) => b.id !== blockId))
+  }
+
+  async function handleDownloadData() {
+    const { data: posts } = await supabase
+      .from("posts")
+      .select("*")
+      .eq("user_id", user!.id)
+
+    const { data: comments } = await supabase
+      .from("comments")
+      .select("*")
+      .eq("user_id", user!.id)
+
+    const data = {
+      profile,
+      posts: posts || [],
+      comments: comments || [],
+    }
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `buildboard-data-${new Date().toISOString().split("T")[0]}.json`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   if (authLoading || !user || loadingProfile) {
@@ -585,6 +669,70 @@ export function SettingsPage() {
                       maxLength={150}
                     />
                     {bioError && <p className="text-xs text-destructive">{bioError}</p>}
+                  </div>
+
+                  {/* Pronouns */}
+                  <div className="space-y-2">
+                    <Label htmlFor="pronouns" className="text-xs text-muted-foreground">
+                      Pronouns
+                    </Label>
+                    <Input
+                      id="pronouns"
+                      value={pronouns}
+                      onChange={(e) => setPronouns(e.target.value)}
+                      placeholder="e.g. they/them, she/her, he/him"
+                      className="bg-transparent h-9 text-sm"
+                      maxLength={20}
+                    />
+                  </div>
+
+                  {/* Social Links */}
+                  <div className="space-y-3">
+                    <Label className="text-xs text-muted-foreground">Social Links</Label>
+                    <div className="grid gap-2">
+                      <Input
+                        placeholder="GitHub username or URL"
+                        value={githubUrl}
+                        onChange={(e) => setGithubUrl(e.target.value)}
+                        className="bg-transparent h-9 text-sm"
+                        maxLength={100}
+                      />
+                      <Input
+                        placeholder="YouTube handle or URL"
+                        value={youtubeUrl}
+                        onChange={(e) => setYoutubeUrl(e.target.value)}
+                        className="bg-transparent h-9 text-sm"
+                        maxLength={100}
+                      />
+                      <Input
+                        placeholder="X (Twitter) handle or URL"
+                        value={twitterUrl}
+                        onChange={(e) => setTwitterUrl(e.target.value)}
+                        className="bg-transparent h-9 text-sm"
+                        maxLength={100}
+                      />
+                      <Input
+                        placeholder="Instagram handle or URL"
+                        value={instagramUrl}
+                        onChange={(e) => setInstagramUrl(e.target.value)}
+                        className="bg-transparent h-9 text-sm"
+                        maxLength={100}
+                      />
+                      <Input
+                        placeholder="LinkedIn profile or URL"
+                        value={linkedinUrl}
+                        onChange={(e) => setLinkedinUrl(e.target.value)}
+                        className="bg-transparent h-9 text-sm"
+                        maxLength={100}
+                      />
+                      <Input
+                        placeholder="Website URL"
+                        value={websiteUrl}
+                        onChange={(e) => setWebsiteUrl(e.target.value)}
+                        className="bg-transparent h-9 text-sm"
+                        maxLength={100}
+                      />
+                    </div>
                   </div>
 
                   {/* Email */}
@@ -792,16 +940,44 @@ export function SettingsPage() {
                   <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Account Information
                   </h3>
-                  <div className="space-y-1.5">
-                    <p className="text-xs text-muted-foreground">Account created</p>
-                    <p className="text-sm text-foreground">
-                      {profile?.created_at
-                        ? new Date(profile.created_at).toLocaleDateString(undefined, {
-                            year: "numeric",
-                            month: "long",
-                            day: "numeric",
-                          })
-                        : "N/A"}
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <p className="text-xs text-muted-foreground">Account created</p>
+                      <p className="text-sm text-foreground">
+                        {profile?.created_at
+                          ? new Date(profile.created_at).toLocaleDateString(undefined, {
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric",
+                            })
+                          : "N/A"}
+                      </p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <p className="text-xs text-muted-foreground">Account ID</p>
+                      <p className="text-xs font-mono text-muted-foreground/70">{user?.id}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <Separator className="bg-border/50" />
+
+                {/* Data management */}
+                <div className="space-y-3">
+                  <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Data Management
+                  </h3>
+                  <div className="space-y-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDownloadData}
+                      className="h-8 text-xs"
+                    >
+                      Download my data
+                    </Button>
+                    <p className="text-xs text-muted-foreground/60">
+                      Download a JSON file with your posts, comments, and profile data.
                     </p>
                   </div>
                 </div>
@@ -995,6 +1171,70 @@ export function SettingsPage() {
                       }}
                     />
                   </div>
+
+                  <Separator className="bg-border/50" />
+
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="space-y-0.5">
+                      <p className="text-sm text-foreground">Post anonymously by default</p>
+                      <p className="text-xs text-muted-foreground">
+                        New posts and comments will show as "Anonymous" by default
+                      </p>
+                    </div>
+                    <Switch
+                      checked={defaultAnonymous}
+                      onCheckedChange={(checked) => {
+                        setDefaultAnonymous(checked)
+                        handleSavePrivacy()
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <Separator className="bg-border/50" />
+
+                {/* Blocked Users */}
+                <div className="space-y-3">
+                  <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Blocked Users
+                  </h3>
+                  {blockedUsers.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">You haven't blocked any users.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {blockedUsers.map((block) => (
+                        <div
+                          key={block.id}
+                          className="flex items-center justify-between p-3 rounded-lg border border-border/50"
+                        >
+                          <div className="flex items-center gap-3">
+                            {block.profiles.avatar_url ? (
+                              <img
+                                src={block.profiles.avatar_url}
+                                alt=""
+                                className="size-8 rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className="size-8 rounded-full bg-muted flex items-center justify-center">
+                                <User className="size-4 text-muted-foreground" />
+                              </div>
+                            )}
+                            <span className="text-sm text-foreground">
+                              {block.profiles.display_name || "Anonymous"}
+                            </span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleUnblock(block.id)}
+                            className="h-7 text-xs"
+                          >
+                            Unblock
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </section>
             )}

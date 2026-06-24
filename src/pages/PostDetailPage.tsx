@@ -132,7 +132,7 @@ export function PostDetailPage() {
   useEffect(() => {
     if (commentContent) {
       const result = sanitizeComment(commentContent)
-      setCommentValidationError(result.valid ? null : result.error)
+      setCommentValidationError(result.valid ? null : (result.error ?? null))
     } else {
       setCommentValidationError(null)
     }
@@ -143,7 +143,7 @@ export function PostDetailPage() {
 
     const contentResult = sanitizeComment(commentContent)
     if (!contentResult.valid) {
-      setCommentValidationError(contentResult.error)
+      setCommentValidationError(contentResult.error ?? null)
       return
     }
 
@@ -153,6 +153,27 @@ export function PostDetailPage() {
     const rateCheck = await checkRateLimit("comment")
     if (!rateCheck.allowed) {
       setCommentError(formatRateLimitMessage("comment", getTimeUntilReset()))
+      return
+    }
+
+    // Moderate content
+    const { data: { session } } = await supabase.auth.getSession()
+    const modRes = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/moderate-content`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          "Apikey": import.meta.env.VITE_SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({ content: commentContent }),
+      }
+    )
+    const modResult = await modRes.json()
+
+    if (!modResult.allowed) {
+      setCommentError(modResult.reason || "Content violates our guidelines")
       return
     }
 
@@ -176,6 +197,7 @@ export function PostDetailPage() {
         author_name: showAnonymous ? null : (commentAuthor.trim() || null),
         user_id: user?.id ?? null,
         show_anonymous: showAnonymous,
+        flagged: modResult.flagged || false,
       })
       .select()
       .single()

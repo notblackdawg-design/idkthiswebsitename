@@ -35,6 +35,7 @@ Deno.serve(async (req: Request) => {
     const now = new Date();
     const windowStart = new Date(now.getTime() - WINDOW_MS);
 
+    // Rate limiting
     const { data: existing } = await supabase
       .from("ai_rate_limits")
       .select("id, request_count")
@@ -62,15 +63,24 @@ Deno.serve(async (req: Request) => {
         .insert({ identifier, request_count: 1, window_start: now.toISOString() });
     }
 
+    // Check for Gemini API key
     const apiKey = Deno.env.get("GEMINI_API_KEY");
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: "AI service not configured" }), {
+      console.error("GEMINI_API_KEY not configured in edge function secrets");
+      return new Response(JSON.stringify({
+        error: "AI service not configured. Please contact support."
+      }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const prompt = `Explain what this person is working on in simple plain English in 2 to 3 sentences. Here is their post: ${title.trim()}${description?.trim() ? ` — ${description.trim()}` : ""}`;
+    const sanitizedTitle = title.trim().replace(/[<>]/g, '');
+    const sanitizedDesc = description?.trim()?.replace(/[<>]/g, '') || '';
+
+    const prompt = `Explain what this person is working on in simple plain English in 2 to 3 sentences. Here is their post: ${sanitizedTitle}${sanitizedDesc ? ` — ${sanitizedDesc}` : ""}`;
+
+    console.log("Calling Gemini API...");
 
     const geminiRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
@@ -85,7 +95,9 @@ Deno.serve(async (req: Request) => {
     );
 
     if (!geminiRes.ok) {
-      return new Response(JSON.stringify({ error: "AI service unavailable" }), {
+      const errorText = await geminiRes.text();
+      console.error("Gemini API error:", geminiRes.status, errorText);
+      return new Response(JSON.stringify({ error: "AI service unavailable. Please try again later." }), {
         status: 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -95,6 +107,7 @@ Deno.serve(async (req: Request) => {
     const explanation = geminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
 
     if (!explanation) {
+      console.error("No explanation generated:", JSON.stringify(geminiData));
       return new Response(JSON.stringify({ error: "Failed to generate explanation" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -104,7 +117,8 @@ Deno.serve(async (req: Request) => {
     return new Response(JSON.stringify({ explanation }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch {
+  } catch (error) {
+    console.error("Explain post error:", error);
     return new Response(JSON.stringify({ error: "Internal server error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

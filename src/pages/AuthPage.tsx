@@ -37,6 +37,7 @@ export function AuthPage() {
   const [signUpSuccess, setSignUpSuccess] = useState(false)
   const [showSignUpPassword, setShowSignUpPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [termsAccepted, setTermsAccepted] = useState(false)
 
   // Validation states
   const [nameError, setNameError] = useState<string | null>(null)
@@ -53,7 +54,7 @@ export function AuthPage() {
   useEffect(() => {
     if (signUpName) {
       const result = validateDisplayName(signUpName)
-      setNameError(result.valid ? null : result.error)
+      setNameError(result.valid ? null : (result.error ?? null))
     } else {
       setNameError(null)
     }
@@ -62,7 +63,7 @@ export function AuthPage() {
   useEffect(() => {
     if (signUpEmail) {
       const result = validateEmail(signUpEmail)
-      setEmailError(result.valid ? null : result.error)
+      setEmailError(result.valid ? null : (result.error ?? null))
     } else {
       setEmailError(null)
     }
@@ -71,7 +72,7 @@ export function AuthPage() {
   useEffect(() => {
     if (signUpPassword) {
       const result = validatePassword(signUpPassword)
-      setPasswordError(result.valid ? null : result.error)
+      setPasswordError(result.valid ? null : (result.error ?? null))
       setPasswordStrength(result.strength)
     } else {
       setPasswordError(null)
@@ -97,12 +98,45 @@ export function AuthPage() {
     setSignInLoading(true)
     setSignInError(null)
 
+    // Check lockout
+    const lockCheck = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth-actions?action=check-lockout`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Apikey": import.meta.env.VITE_SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({ email: signInEmail.trim().toLowerCase() }),
+      }
+    )
+    const lockData = await lockCheck.json()
+
+    if (lockData.locked) {
+      setSignInError(`Too many failed attempts. Please try again in ${lockData.timeRemaining || "15 minutes"}.`)
+      setSignInLoading(false)
+      return
+    }
+
     const { error } = await supabase.auth.signInWithPassword({
       email: signInEmail.trim().toLowerCase(),
       password: signInPassword,
     })
 
     if (error) {
+      // Record failed attempt
+      await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth-actions?action=record-attempt`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Apikey": import.meta.env.VITE_SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({ email: signInEmail.trim().toLowerCase() }),
+        }
+      )
+
       if (error.message.includes("Email not confirmed")) {
         setSignInError("Please verify your email before signing in.")
       } else if (
@@ -126,24 +160,29 @@ export function AuthPage() {
     // Validate all fields
     const nameResult = validateDisplayName(signUpName)
     if (!nameResult.valid) {
-      setNameError(nameResult.error!)
+      setNameError(nameResult.error ?? null)
       return
     }
 
     const emailResult = validateEmail(signUpEmail)
     if (!emailResult.valid) {
-      setEmailError(emailResult.error!)
+      setEmailError(emailResult.error ?? null)
       return
     }
 
     const passwordResult = validatePassword(signUpPassword)
     if (!passwordResult.valid) {
-      setPasswordError(passwordResult.error!)
+      setPasswordError(passwordResult.error ?? null)
       return
     }
 
     if (signUpPassword !== signUpConfirmPassword) {
       setConfirmError("Passwords do not match")
+      return
+    }
+
+    if (!termsAccepted) {
+      setSignUpError("Please accept the Terms of Service and Privacy Policy to continue.")
       return
     }
 
@@ -180,14 +219,15 @@ export function AuthPage() {
     validateDisplayName(signUpName).valid &&
     validateEmail(signUpEmail).valid &&
     validatePassword(signUpPassword).valid &&
-    signUpPassword === signUpConfirmPassword
+    signUpPassword === signUpConfirmPassword &&
+    termsAccepted
 
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border/50">
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center">
           <Link to="/" className="text-sm font-semibold tracking-tight text-foreground">
-            makra
+            BuildBoard
           </Link>
         </div>
       </header>
@@ -415,6 +455,22 @@ export function AuthPage() {
                     <p className="text-xs text-destructive">{confirmError}</p>
                   )}
                 </div>
+
+                {/* Terms checkbox */}
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={termsAccepted}
+                    onChange={(e) => setTermsAccepted(e.target.checked)}
+                    className="mt-0.5 size-4 rounded border-border"
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    I agree to the{" "}
+                    <Link to="/terms" className="underline hover:text-foreground">Terms of Service</Link>,{" "}
+                    <Link to="/privacy" className="underline hover:text-foreground">Privacy Policy</Link>, and{" "}
+                    <Link to="/cookies" className="underline hover:text-foreground">Cookie Policy</Link>.
+                  </span>
+                </label>
 
                 {signUpError && (
                   <p className="text-xs text-destructive">{signUpError}</p>

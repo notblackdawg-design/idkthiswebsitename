@@ -19,34 +19,79 @@ export function AboutPage() {
 
         <div className="space-y-8">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight mb-4">About Makra</h1>
+            <h1 className="text-2xl font-semibold tracking-tight mb-4">About BuildBoard</h1>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Makra is a live public feed for builders and creators to share what they're
-              working on — no polish required. Post a title, a tag, and a description of
-              your project at any stage, and let others see what you're making in real time.
+              BuildBoard is a live public feed where builders and creators share what they're
+              working on — no polish required. Share your project at any stage, connect with
+              fellow creators, and discover what others are building in real time.
             </p>
           </div>
 
           <div className="border-t border-border/50 pt-8">
-            <h2 className="text-sm font-semibold mb-3 text-foreground">How it works</h2>
+            <h2 className="text-sm font-semibold mb-3 text-foreground">What makes BuildBoard different</h2>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li className="flex items-start gap-2">
                 <span className="text-foreground/40 shrink-0 mt-0.5">—</span>
-                Post what you're building, no account needed
+                Share your work in progress, finished projects, or just ideas
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-foreground/40 shrink-0 mt-0.5">—</span>
-                Tag it by category to help others find it
+                No account required to post or comment
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-foreground/40 shrink-0 mt-0.5">—</span>
-                Get an AI-powered plain English explanation of any post
+                AI-powered plain English explanations for technical posts
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-foreground/40 shrink-0 mt-0.5">—</span>
-                Leave comments and connect with other builders
+                Organize your posts with tags: Code, Design, Music, Art, Writing, Game, Other
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-foreground/40 shrink-0 mt-0.5">—</span>
+                Create a public profile to showcase your work
               </li>
             </ul>
+          </div>
+
+          <div className="border-t border-border/50 pt-8">
+            <h2 className="text-sm font-semibold mb-3 text-foreground">For thecommunity</h2>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              BuildBoard is built for anyone who creates — developers, designers, musicians,
+              artists, writers, game developers, and everyone in between. Whether you're
+              building a side project, working on your craft, or just sharing something
+              cool, this is your space to connect.
+            </p>
+          </div>
+
+          <div className="border-t border-border/50 pt-8">
+            <h2 className="text-sm font-semibold mb-3 text-foreground">Privacy & Safety</h2>
+            <ul className="space-y-2 text-sm text-muted-foreground">
+              <li className="flex items-start gap-2">
+                <span className="text-foreground/40 shrink-0 mt-0.5">—</span>
+                Post anonymously or with your identity
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-foreground/40 shrink-0 mt-0.5">—</span>
+                Control your profile visibility and privacy settings
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-foreground/40 shrink-0 mt-0.5">—</span>
+                Block and report users who violate our community standards
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-foreground/40 shrink-0 mt-0.5">—</span>
+                Automated content moderation to keep the feed clean
+              </li>
+            </ul>
+          </div>
+
+          <div className="border-t border-border/50 pt-8">
+            <h2 className="text-sm font-semibold mb-3 text-foreground">Open & Accessible</h2>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              We believe the best communities are open to everyone. That's why you can
+              browse, post, and comment without creating an account. Sign up only if you
+              want a persistent identity and profile.
+            </p>
           </div>
 
           <div className="border-t border-border/50 pt-8">

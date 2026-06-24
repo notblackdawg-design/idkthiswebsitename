@@ -11,14 +11,15 @@ import { supabase, TAGS, type Tag } from "@/lib/supabase"
 import { TAG_COLORS } from "@/lib/tag-colors"
 import { useAuth } from "@/hooks/use-auth"
 import { useRateLimit, formatRateLimitMessage } from "@/hooks/use-rate-limit"
-import { sanitizeTitle, sanitizeDescription, sanitizeText } from "@/lib/sanitize"
+import { sanitizeTitle, sanitizeDescription } from "@/lib/sanitize"
 import { uploadMedia, validateMediaFile } from "@/lib/media-upload"
+import { getOrCreateGuestId } from "@/lib/guest-id"
 import { cn } from "@/lib/utils"
 
 export function SubmitPage() {
   const navigate = useNavigate()
   const { user, displayName } = useAuth()
-  const { limited: rateLimited, remaining, getTimeUntilReset, checkRateLimit } = useRateLimit()
+  const { limited: rateLimited, getTimeUntilReset, checkRateLimit } = useRateLimit()
 
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
@@ -49,7 +50,7 @@ export function SubmitPage() {
   useEffect(() => {
     if (title) {
       const result = sanitizeTitle(title)
-      setTitleError(result.valid ? null : result.error)
+      setTitleError(result.valid ? null : (result.error ?? null))
     } else {
       setTitleError(null)
     }
@@ -58,7 +59,7 @@ export function SubmitPage() {
   useEffect(() => {
     if (description) {
       const result = sanitizeDescription(description)
-      setDescError(result.valid ? null : result.error)
+      setDescError(result.valid ? null : (result.error ?? null))
     } else {
       setDescError(null)
     }
@@ -73,7 +74,7 @@ export function SubmitPage() {
     // Validate file
     const validation = await validateMediaFile(file)
     if (!validation.valid) {
-      setMediaError(validation.error || "Invalid file")
+      setMediaError(validation.error ?? "Invalid file")
       return
     }
 
@@ -94,7 +95,7 @@ export function SubmitPage() {
     // Validate
     const titleResult = sanitizeTitle(title)
     if (!titleResult.valid) {
-      setTitleError(titleResult.error)
+      setTitleError(titleResult.error ?? null)
       return
     }
 
@@ -112,30 +113,58 @@ export function SubmitPage() {
       return
     }
 
+    // Moderate content
+    const contentToModerate = `${title}${description ? ` ${description}` : ""}`
+    const { data: { session } } = await supabase.auth.getSession()
+    const modRes = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/moderate-content`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          "Apikey": import.meta.env.VITE_SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({ content: contentToModerate }),
+      }
+    )
+    const modResult = await modRes.json()
+
+    if (!modResult.allowed) {
+      setError(modResult.reason || "Content violates our guidelines")
+      setSubmitting(false)
+      return
+    }
+
     setSubmitting(true)
     setError(null)
 
     let mediaUrl: string | null = null
 
+    // Get identifier for upload (user_id or guest_id)
+    const identifier = user?.id || getOrCreateGuestId()
+
     if (mediaFile) {
-      const uploadResult = await uploadMedia(mediaFile, user?.id || "anonymous", "posts")
+      const uploadResult = await uploadMedia(mediaFile, identifier, "posts")
       if (!uploadResult.success) {
-        setError(uploadResult.error || "Failed to upload media")
+        setError(uploadResult.error ?? "Failed to upload media")
         setSubmitting(false)
         return
       }
-      // Store the path for signed URL generation
-      mediaUrl = uploadResult.url
+      mediaUrl = uploadResult.url ?? null
     }
 
     // Get user's privacy preference
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("show_real_name")
-      .eq("user_id", user?.id)
-      .maybeSingle()
+    let showAnonymous = false
+    if (user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("show_real_name, default_anonymous")
+        .eq("user_id", user.id)
+        .maybeSingle()
 
-    const showAnonymous = profile ? !profile.show_real_name : false
+      showAnonymous = profile?.default_anonymous || !profile?.show_real_name
+    }
 
     const { data, error: insertError } = await supabase
       .from("posts")
@@ -147,11 +176,14 @@ export function SubmitPage() {
         author_name: showAnonymous ? null : (authorName.trim() || null),
         user_id: user?.id ?? null,
         show_anonymous: showAnonymous,
+        guest_id: user ? null : identifier,
+        flagged: modResult.flagged || false,
       })
       .select()
       .single()
 
     if (insertError || !data) {
+      console.error("Insert error:", insertError)
       setError("Failed to submit. Please try again.")
       setSubmitting(false)
       return
@@ -179,7 +211,7 @@ export function SubmitPage() {
         <div className="mb-7">
           <h1 className="text-xl font-semibold tracking-tight">Share what you're building</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            No account needed. Just share your work.
+            {user ? "Share your latest project with the community." : "No account needed. Just share your work."}
           </p>
         </div>
 

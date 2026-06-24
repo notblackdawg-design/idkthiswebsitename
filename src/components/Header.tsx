@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom"
-import { Plus, User, LogOut, LayoutGrid, Settings } from "lucide-react"
+import { Plus, User, LogOut, LayoutGrid, Settings, Sun, Moon, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -9,9 +9,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useAuth } from "@/hooks/use-auth"
+import { useTheme } from "@/components/theme-provider"
 
 export function Header() {
   const { user, displayName, signOut } = useAuth()
+  const { theme, setTheme } = useTheme()
 
   const initials = displayName
     ? displayName.slice(0, 2).toUpperCase()
@@ -21,10 +23,26 @@ export function Header() {
     <header className="border-b border-border/50 sticky top-0 z-10 bg-background/80 backdrop-blur-sm">
       <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
         <Link to="/" className="text-sm font-semibold tracking-tight text-foreground">
-          makra
+          BuildBoard
         </Link>
 
         <div className="flex items-center gap-2">
+          <Link
+            to="/search"
+            className="size-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            title="Search"
+          >
+            <Search className="size-4" />
+          </Link>
+
+          <button
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            className="size-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+          >
+            {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+          </button>
+
           <Link to="/submit">
             <Button size="sm" className="gap-1.5 h-7 text-xs">
               <Plus className="size-3" />

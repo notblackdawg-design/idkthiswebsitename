@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { formatDistanceToNow } from "date-fns"
-import { MessageSquare, Sparkles, Loader as Loader2 } from "lucide-react"
+import { MessageSquare, Sparkles, Loader as Loader2, MoveVertical as MoreVertical } from "lucide-react"
 import { Link } from "react-router-dom"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -10,16 +10,26 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import type { Post } from "@/lib/supabase"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { ProfileModal } from "@/components/ProfileModal"
+import { ReportModal } from "@/components/ReportModal"
+import type { Post, Profile } from "@/lib/supabase"
 import { TAG_COLORS } from "@/lib/tag-colors"
 import { supabase } from "@/lib/supabase"
 import { getSignedUrl } from "@/lib/media-upload"
+import { useAuth } from "@/hooks/use-auth"
 
 interface PostCardProps {
   post: Post
 }
 
 export function PostCard({ post }: PostCardProps) {
+  const { user } = useAuth()
   const author = post.show_anonymous ? "Anonymous" : (post.author_name?.trim() || "Anonymous")
   const timeAgo = formatDistanceToNow(new Date(post.created_at), { addSuffix: true })
 
@@ -29,6 +39,12 @@ export function PostCard({ post }: PostCardProps) {
   const [explainError, setExplainError] = useState<string | null>(null)
 
   const [signedMediaUrl, setSignedMediaUrl] = useState<string | null>(null)
+
+  const [profileModalOpen, setProfileModalOpen] = useState(false)
+  const [authorProfile, setAuthorProfile] = useState<Profile | null>(null)
+
+  const [reportOpen, setReportOpen] = useState(false)
+  const [hasBlocked, setHasBlocked] = useState(false)
 
   // Get signed URL for private media
   useEffect(() => {
@@ -77,6 +93,34 @@ export function PostCard({ post }: PostCardProps) {
     if (!explanation) fetchExplanation()
   }
 
+  async function handleAuthorClick(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+
+    if (!post.user_id || post.show_anonymous) return
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("user_id", post.user_id)
+      .maybeSingle()
+
+    if (profile) {
+      setAuthorProfile(profile)
+      setProfileModalOpen(true)
+    }
+  }
+
+  async function handleBlock() {
+    if (!user || !post.user_id) return
+
+    await supabase.from("blocks").insert({
+      blocker_id: user.id,
+      blocked_id: post.user_id,
+    })
+    setHasBlocked(true)
+  }
+
   const mediaUrl = signedMediaUrl || post.media_url
   const isVideo = post.media_url?.match(/\.(mp4|webm|ogg)$/i)
 
@@ -123,7 +167,12 @@ export function PostCard({ post }: PostCardProps) {
 
         <div className="flex items-center justify-between mt-3">
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            <span className="font-medium">{author}</span>
+            <button
+              onClick={handleAuthorClick}
+              className={`font-medium ${post.user_id && !post.show_anonymous ? "hover:text-foreground hover:underline cursor-pointer" : "cursor-default"}`}
+            >
+              {author}
+            </button>
             <span className="text-muted-foreground/50">·</span>
             <span>{timeAgo}</span>
             <span className="text-muted-foreground/50">·</span>
@@ -133,15 +182,53 @@ export function PostCard({ post }: PostCardProps) {
             </Link>
           </div>
 
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleExplain}
-            className="h-6 px-2 text-xs text-muted-foreground/70 hover:text-foreground gap-1 shrink-0"
-          >
-            <Sparkles className="size-3" />
-            Explain
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleExplain}
+              className="h-6 px-2 text-xs text-muted-foreground/70 hover:text-foreground gap-1 shrink-0"
+            >
+              <Sparkles className="size-3" />
+              Explain
+            </Button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0 text-muted-foreground/70 hover:text-foreground shrink-0"
+                >
+                  <MoreVertical className="size-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-36">
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setReportOpen(true)
+                  }}
+                  className="text-xs cursor-pointer"
+                >
+                  Report post
+                </DropdownMenuItem>
+                {user && post.user_id && user.id !== post.user_id && !post.show_anonymous && (
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      handleBlock()
+                    }}
+                    className="text-xs cursor-pointer"
+                  >
+                    {hasBlocked ? "User blocked" : "Block user"}
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </article>
 
@@ -178,6 +265,20 @@ export function PostCard({ post }: PostCardProps) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ProfileModal
+        open={profileModalOpen}
+        onOpenChange={setProfileModalOpen}
+        profile={authorProfile}
+      />
+
+      <ReportModal
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        contentType="post"
+        contentId={post.id}
+        reportedUserId={post.user_id ?? undefined}
+      />
     </>
   )
 }
