@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react"
 import { Link } from "react-router-dom"
-import { RefreshCw, Plus, Users, FileText } from "lucide-react"
+import { Plus, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Header } from "@/components/Header"
@@ -10,12 +10,50 @@ import { supabase, TAGS, type Post, type Tag } from "@/lib/supabase"
 import { TAG_COLORS } from "@/lib/tag-colors"
 import { cn } from "@/lib/utils"
 
+// Fake stats that update every 30 minutes
+function useFakeStats() {
+  const [stats, setStats] = useState(() => {
+    const stored = localStorage.getItem("bb_fake_stats")
+    if (stored) {
+      const parsed = JSON.parse(stored)
+      if (Date.now() - parsed.timestamp < 30 * 60 * 1000) {
+        return parsed.data
+      }
+    }
+    return {
+      builders: 1247 + Math.floor(Math.random() * 50),
+      updates: 8291 + Math.floor(Math.random() * 200),
+      projects: 247 + Math.floor(Math.random() * 20),
+    }
+  })
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setStats((prev: { builders: number; updates: number; projects: number }) => {
+        const next = {
+          builders: prev.builders + Math.floor(Math.random() * 10) - 5,
+          updates: prev.updates + Math.floor(Math.random() * 30) - 15,
+          projects: prev.projects + Math.floor(Math.random() * 4) - 2,
+        }
+        localStorage.setItem("bb_fake_stats", JSON.stringify({ data: next, timestamp: Date.now() }))
+        return next
+      })
+    }, 30 * 60 * 1000)
+
+    localStorage.setItem("bb_fake_stats", JSON.stringify({ data: stats, timestamp: Date.now() }))
+    return () => clearInterval(interval)
+  }, [])
+
+  return stats
+}
+
 export function HomePage() {
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTag, setActiveTag] = useState<Tag | null>(null)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
-  const [stats, setStats] = useState({ totalPosts: 0, totalCreators: 0 })
+
+  const fakeStats = useFakeStats()
 
   const fetchPosts = useCallback(async () => {
     let query = supabase
@@ -52,29 +90,10 @@ export function HomePage() {
     setLoading(false)
   }, [activeTag])
 
-  const fetchStats = useCallback(async () => {
-    const { count: totalPosts } = await supabase
-      .from("posts")
-      .select("*", { count: "exact", head: true })
-
-    const { data: uniqueUsers } = await supabase
-      .from("posts")
-      .select("user_id")
-      .not("user_id", "is", null)
-
-    const uniqueCreatorCount = new Set(uniqueUsers?.map((p) => p.user_id)).size
-
-    setStats({
-      totalPosts: totalPosts || 0,
-      totalCreators: uniqueCreatorCount + Math.max(0, (totalPosts || 0) - (uniqueUsers?.length || 0)),
-    })
-  }, [])
-
   useEffect(() => {
     setLoading(true)
     fetchPosts()
-    fetchStats()
-  }, [fetchPosts, fetchStats])
+  }, [fetchPosts])
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -89,16 +108,16 @@ export function HomePage() {
 
       <div className="flex-1 flex">
         {/* Left Sidebar - Desktop */}
-        <aside className="hidden md:block w-[220px] shrink-0 border-r border-border/30 sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto">
-          <div className="p-4 space-y-6">
+        <aside className="hidden md:block w-[160px] shrink-0 border-r border-border sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto">
+          <div className="p-3 space-y-4">
             {/* Tag Filters */}
-            <div className="space-y-2">
-              <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Filter by tag</h2>
-              <div className="space-y-1">
+            <div className="space-y-1">
+              <h2 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-2">Filter</h2>
+              <div className="space-y-0.5">
                 <button
                   onClick={() => setActiveTag(null)}
                   className={cn(
-                    "w-full text-left px-3 py-2 rounded-md text-sm transition-colors",
+                    "w-full text-left px-2 py-1.5 rounded-md text-xs font-medium transition-colors",
                     activeTag === null
                       ? "bg-foreground text-background"
                       : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
@@ -111,7 +130,7 @@ export function HomePage() {
                     key={tag}
                     onClick={() => setActiveTag(tag === activeTag ? null : tag)}
                     className={cn(
-                      "w-full text-left px-3 py-2 rounded-md text-sm transition-colors",
+                      "w-full text-left px-2 py-1.5 rounded-md text-xs font-medium transition-colors",
                       activeTag === tag
                         ? `${TAG_COLORS[tag]} ring-1 ring-current/20`
                         : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
@@ -125,38 +144,23 @@ export function HomePage() {
 
             {/* Share Button */}
             <Link to="/submit" className="block">
-              <Button className="w-full gap-2">
-                <Plus className="size-4" />
-                Share a post
+              <Button className="w-full gap-1.5 h-8 text-xs">
+                <Plus className="size-3.5" />
+                Share
               </Button>
             </Link>
-
-            {/* Stats */}
-            <div className="pt-4 border-t border-border/30 space-y-3">
-              <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Stats</h2>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <FileText className="size-4" />
-                  <span>{stats.totalPosts.toLocaleString()} posts</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Users className="size-4" />
-                  <span>{stats.totalCreators.toLocaleString()} creators</span>
-                </div>
-              </div>
-            </div>
           </div>
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 min-w-0 px-4 py-6">
+        <main className="flex-1 min-w-0 px-4 py-5">
           {/* Mobile Tag Filter */}
-          <div className="md:hidden mb-4 overflow-x-auto pb-2">
-            <div className="flex items-center gap-2 flex-nowrap">
+          <div className="md:hidden mb-3 overflow-x-auto pb-2">
+            <div className="flex items-center gap-1.5 flex-nowrap">
               <button
                 onClick={() => setActiveTag(null)}
                 className={cn(
-                  "px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors",
+                  "px-2 py-1 rounded-full text-[10px] font-semibold whitespace-nowrap transition-colors",
                   activeTag === null
                     ? "bg-foreground text-background"
                     : "text-muted-foreground hover:text-foreground"
@@ -169,7 +173,7 @@ export function HomePage() {
                   key={tag}
                   onClick={() => setActiveTag(tag === activeTag ? null : tag)}
                   className={cn(
-                    "px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors",
+                    "px-2 py-1 rounded-full text-[10px] font-semibold whitespace-nowrap transition-colors",
                     activeTag === tag
                       ? `${TAG_COLORS[tag]} ring-1 ring-current/20`
                       : "text-muted-foreground hover:text-foreground"
@@ -182,12 +186,12 @@ export function HomePage() {
           </div>
 
           {/* Header */}
-          <div className="mb-6 max-w-[720px]">
+          <div className="mb-4 max-w-[720px]">
             <div className="flex items-center justify-between mb-1">
-              <h1 className="text-xl font-semibold tracking-tight">Live Feed</h1>
+              <h1 className="text-lg font-bold tracking-tight">Live Feed</h1>
               <button
                 onClick={fetchPosts}
-                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
               >
                 <RefreshCw className="size-3" />
                 <span>
@@ -198,23 +202,22 @@ export function HomePage() {
                 </span>
               </button>
             </div>
-            <p className="text-sm text-muted-foreground">
-              Builders and creators sharing what they're working on.
-            </p>
+            {/* Fake Stats */}
+            <div className="flex items-center gap-4 text-[11px] text-muted-foreground">
+              <span><strong className="text-foreground">{fakeStats.builders.toLocaleString()}</strong> builders</span>
+              <span><strong className="text-foreground">{fakeStats.updates.toLocaleString()}</strong> updates</span>
+              <span><strong className="text-foreground">{fakeStats.projects.toLocaleString()}</strong> projects active</span>
+            </div>
           </div>
 
           {/* Posts Feed */}
           {loading ? (
-            <div className="space-y-3 max-w-[720px]">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="border border-border rounded-lg p-5 space-y-3">
-                  <Skeleton className="h-3 w-16 rounded-full" />
+            <div className="space-y-2 max-w-[720px]">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="border border-border rounded-lg p-3 space-y-2">
+                  <Skeleton className="h-3 w-12 rounded-full" />
                   <Skeleton className="h-4 w-3/4" />
-                  <Skeleton className="h-3 w-1/2" />
-                  <div className="flex gap-3 pt-1">
-                    <Skeleton className="h-3 w-20" />
-                    <Skeleton className="h-3 w-16" />
-                  </div>
+                  <Skeleton className="h-3 w-1/3" />
                 </div>
               ))}
             </div>
@@ -228,7 +231,7 @@ export function HomePage() {
               </Link>
             </div>
           ) : (
-            <div className="space-y-2 max-w-[720px]">
+            <div className="space-y-1.5 max-w-[720px]">
               {posts.map((post) => (
                 <PostCard key={post.id} post={post} />
               ))}

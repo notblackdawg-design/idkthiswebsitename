@@ -75,7 +75,7 @@ export function ProfilePage() {
     // Get the post to find media URL
     const post = posts.find(p => p.id === postId)
     if (post?.media_url && !post.media_url.startsWith("http")) {
-      await supabase.storage.from("media-media").remove([post.media_url])
+      await supabase.storage.from("media").remove([post.media_url])
     }
 
     await supabase.from("posts").delete().eq("id", postId)

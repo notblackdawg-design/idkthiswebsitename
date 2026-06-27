@@ -219,7 +219,7 @@ export function PostDetailPage() {
 
     // Delete media file if exists
     if (post.media_url && !post.media_url.startsWith("http")) {
-      await supabase.storage.from("media-media").remove([post.media_url])
+      await supabase.storage.from("media").remove([post.media_url])
     }
 
     await supabase.from("posts").delete().eq("id", post.id)

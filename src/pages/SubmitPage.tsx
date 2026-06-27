@@ -220,7 +220,7 @@ export function SubmitPage() {
         </Link>
 
         <div className="mb-7">
-          <h1 className="text-xl font-semibold tracking-tight">Share what you're building</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Share what you're building.</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {user ? "Share your latest project with the community." : "No account needed. Just share your work."}
           </p>

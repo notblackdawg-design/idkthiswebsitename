@@ -18,13 +18,13 @@ DROP POLICY IF EXISTS allow_owner_update ON storage.objects;
 
 -- Media bucket policies - allow both authenticated and anon
 CREATE POLICY "media_upload" ON storage.objects
-  FOR INSERT WITH CHECK (bucket_id = 'media-media');
+  FOR INSERT WITH CHECK (bucket_id = 'media');
 
 CREATE POLICY "media_read" ON storage.objects
-  FOR SELECT USING (bucket_id = 'media-media');
+  FOR SELECT USING (bucket_id = 'media');
 
 CREATE POLICY "media_delete" ON storage.objects
-  FOR DELETE USING (bucket_id = 'media-media');
+  FOR DELETE USING (bucket_id = 'media');
 
 -- Avatars bucket policies
 CREATE POLICY "avatars_upload" ON storage.objects

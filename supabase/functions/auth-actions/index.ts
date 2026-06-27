@@ -214,21 +214,21 @@ Deno.serve(async (req: Request) => {
       await supabase.from("rate_limits").delete().eq("identifier", userId);
 
       const { data: files } = await supabase.storage
-        .from("media-media")
+        .from("media")
         .list(`posts/${userId}`);
 
       if (files && files.length > 0) {
         const paths = files.map(f => `posts/${userId}/${f.name}`);
-        await supabase.storage.from("media-media").remove(paths);
+        await supabase.storage.from("media").remove(paths);
       }
 
       const { data: avatarFiles } = await supabase.storage
-        .from("media-media")
+        .from("media")
         .list(`avatars/${userId}`);
 
       if (avatarFiles && avatarFiles.length > 0) {
         const paths = avatarFiles.map(f => `avatars/${userId}/${f.name}`);
-        await supabase.storage.from("media-media").remove(paths);
+        await supabase.storage.from("media").remove(paths);
       }
 
       const { error: deleteError } = await supabase.auth.admin.deleteUser(userId);
