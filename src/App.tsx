@@ -27,6 +27,7 @@ export function App() {
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/profile/:username" element={<PublicProfilePage />} />
+          <Route path="/@:username" element={<PublicProfilePage />} />
           <Route path="/search" element={<SearchPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/settings" element={<SettingsPage />} />

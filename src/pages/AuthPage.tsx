@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { ArrowLeft, Eye, EyeOff, Check, X } from "lucide-react"
+import { ArrowLeft, Eye, EyeOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -376,7 +376,7 @@ export function AuthPage() {
                     <Input
                       id="signup-password"
                       type={showSignUpPassword ? "text" : "password"}
-                      placeholder="Min 8 chars, uppercase, number, symbol"
+                      placeholder="Min 8 characters"
                       value={signUpPassword}
                       onChange={(e) => setSignUpPassword(e.target.value)}
                       className={cn(
@@ -412,10 +412,8 @@ export function AuthPage() {
                           {passwordStrength.charAt(0).toUpperCase() + passwordStrength.slice(1)}
                         </span>
                       </div>
-                      <div className="grid grid-cols-3 gap-1">
-                        <Requirement met={/[A-Z]/.test(signUpPassword)}>Uppercase</Requirement>
-                        <Requirement met={/[0-9]/.test(signUpPassword)}>Number</Requirement>
-                        <Requirement met={/[!@#$%^&*(),.?":{}|<>]/.test(signUpPassword)}>Symbol</Requirement>
+                      <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                        <span>Use 8+ characters for a strong password</span>
                       </div>
                     </div>
                   )}
@@ -467,15 +465,15 @@ export function AuthPage() {
                   <div className="space-y-1">
                     <span className="text-xs text-muted-foreground">
                       I agree to the{" "}
-                      <Link to="/terms" className="underline hover:text-foreground">Terms of Service</Link>,{" "}
-                      <Link to="/privacy" className="underline hover:text-foreground">Privacy Policy</Link>, and{" "}
-                      <Link to="/cookies" className="underline hover:text-foreground">Cookie Policy</Link>.
+                      <Link to="/terms" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">Terms of Service</Link>,{" "}
+                      <Link to="/privacy" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">Privacy Policy</Link>, and{" "}
+                      <Link to="/cookies" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">Cookie Policy</Link>.
                     </span>
                     <p className="text-[10px] text-muted-foreground/60">
                       You also agree to our{" "}
-                      <Link to="/guidelines" className="underline hover:text-muted-foreground">Community Guidelines</Link>,{" "}
-                      <Link to="/copyright" className="underline hover:text-muted-foreground">Copyright Policy</Link>, and{" "}
-                      <Link to="/aup" className="underline hover:text-muted-foreground">Acceptable Use Policy</Link>.
+                      <Link to="/guidelines" target="_blank" rel="noopener noreferrer" className="underline hover:text-muted-foreground">Community Guidelines</Link>,{" "}
+                      <Link to="/copyright" target="_blank" rel="noopener noreferrer" className="underline hover:text-muted-foreground">Copyright Policy</Link>, and{" "}
+                      <Link to="/aup" target="_blank" rel="noopener noreferrer" className="underline hover:text-muted-foreground">Acceptable Use Policy</Link>.
                     </p>
                   </div>
                 </label>
@@ -496,18 +494,6 @@ export function AuthPage() {
           </TabsContent>
         </Tabs>
       </main>
-    </div>
-  )
-}
-
-function Requirement({ met, children }: { met: boolean; children: React.ReactNode }) {
-  return (
-    <div className={cn(
-      "flex items-center gap-1 text-xs",
-      met ? "text-green-500" : "text-muted-foreground"
-    )}>
-      {met ? <Check className="size-3" /> : <X className="size-3" />}
-      {children}
     </div>
   )
 }

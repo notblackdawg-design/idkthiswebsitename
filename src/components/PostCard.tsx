@@ -46,7 +46,6 @@ export function PostCard({ post }: PostCardProps) {
   const [reportOpen, setReportOpen] = useState(false)
   const [hasBlocked, setHasBlocked] = useState(false)
 
-  // Get signed URL for private media
   useEffect(() => {
     if (post.media_url && !post.media_url.startsWith("http")) {
       getSignedUrl(post.media_url).then((url) => {
@@ -126,30 +125,30 @@ export function PostCard({ post }: PostCardProps) {
 
   return (
     <>
-      <article className="border border-border rounded-lg px-5 py-4 bg-card hover:bg-card/80 hover:border-border/80 transition-all duration-150">
+      <article className="border border-border rounded-lg px-4 py-3 bg-card hover:bg-card/80 transition-colors">
         <Link to={`/post/${post.id}`} className="block group">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-1.5">
             <Badge
               variant="outline"
-              className={`text-xs font-medium border-0 px-2 py-0.5 ${TAG_COLORS[post.tag]}`}
+              className={`text-[10px] font-semibold border-0 px-1.5 py-0 ${TAG_COLORS[post.tag]}`}
             >
               {post.tag}
             </Badge>
           </div>
-          <h2 className="text-sm font-medium text-foreground leading-snug group-hover:text-foreground/90 line-clamp-2">
+          <h2 className="text-sm font-semibold text-foreground leading-snug group-hover:text-foreground/80 line-clamp-2">
             {post.title}
           </h2>
           {post.description && (
-            <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed line-clamp-2">
+            <p className="mt-1 text-xs text-muted-foreground line-clamp-1">
               {post.description}
             </p>
           )}
           {mediaUrl && (
-            <div className="mt-3 rounded-md overflow-hidden border border-border/50 max-h-48">
+            <div className="mt-2 rounded-md overflow-hidden border border-border/50 max-h-32">
               {isVideo ? (
                 <video
                   src={mediaUrl}
-                  className="w-full max-h-48 object-cover"
+                  className="w-full max-h-32 object-cover"
                   muted
                   preload="metadata"
                 />
@@ -157,7 +156,7 @@ export function PostCard({ post }: PostCardProps) {
                 <img
                   src={mediaUrl}
                   alt={post.title}
-                  className="w-full max-h-48 object-cover"
+                  className="w-full max-h-32 object-cover"
                   loading="lazy"
                 />
               )}
@@ -165,32 +164,31 @@ export function PostCard({ post }: PostCardProps) {
           )}
         </Link>
 
-        <div className="flex items-center justify-between mt-3">
-          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+        <div className="flex items-center justify-between mt-2">
+          <div className="flex items-center gap-2 text-[11px]">
             <button
               onClick={handleAuthorClick}
-              className={`font-medium ${post.user_id && !post.show_anonymous ? "hover:text-foreground hover:underline cursor-pointer" : "cursor-default"}`}
+              className={`font-semibold ${post.user_id && !post.show_anonymous ? "text-foreground hover:underline cursor-pointer" : "text-muted-foreground cursor-default"}`}
             >
               {author}
             </button>
-            <span className="text-muted-foreground/50">·</span>
-            <span>{timeAgo}</span>
-            <span className="text-muted-foreground/50">·</span>
-            <Link to={`/post/${post.id}`} className="flex items-center gap-1 hover:text-foreground transition-colors">
+            <span className="text-muted-foreground/40">·</span>
+            <span className="text-muted-foreground/70">{timeAgo}</span>
+            <span className="text-muted-foreground/40">·</span>
+            <Link to={`/post/${post.id}`} className="flex items-center gap-1 text-muted-foreground/70 hover:text-foreground transition-colors">
               <MessageSquare className="size-3" />
               {post.comment_count ?? 0}
             </Link>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-0.5">
             <Button
               variant="ghost"
               size="sm"
               onClick={handleExplain}
-              className="h-6 px-2 text-xs text-muted-foreground/70 hover:text-foreground gap-1 shrink-0"
+              className="h-6 px-1.5 text-[10px] text-muted-foreground hover:text-foreground gap-1 shrink-0"
             >
               <Sparkles className="size-3" />
-              Explain
             </Button>
 
             <DropdownMenu>
@@ -198,7 +196,7 @@ export function PostCard({ post }: PostCardProps) {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 w-6 p-0 text-muted-foreground/70 hover:text-foreground shrink-0"
+                  className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground shrink-0"
                 >
                   <MoreVertical className="size-3" />
                 </Button>

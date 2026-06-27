@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { TriangleAlert, Loader as Loader2 } from "lucide-react"
+import { cn } from "@/lib/utils"
 import {
   Dialog,
   DialogContent,
@@ -142,7 +143,12 @@ export function ReportModal({
                 <button
                   key={r.value}
                   onClick={() => setReason(r.value)}
-                  className="w-full text-left px-3 py-2 rounded-md text-sm transition-colors border border-border hover:border-border/80"
+                  className={cn(
+                    "w-full text-left px-3 py-2 rounded-md text-sm transition-colors border",
+                    reason === r.value
+                      ? "bg-foreground text-background border-foreground"
+                      : "border-border hover:border-border/80"
+                  )}
                 >
                   {r.label}
                 </button>

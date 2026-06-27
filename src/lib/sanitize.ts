@@ -119,10 +119,15 @@ export function validateEmail(email: string): { valid: boolean; error?: string }
 /**
  * Password strength requirements:
  * - Minimum 8 characters
- * - At least one uppercase letter
- * - At least one number
- * - At least one special character
+ * - Not a common weak password
+ * - Not all repeating characters
  */
+const WEAK_PASSWORDS = [
+  'password', 'password1', 'password123', '12345678', 'qwerty123',
+  'letmein', 'welcome', 'monkey', 'dragon', 'master',
+  'abc123', '11111111', '00000000', 'aaaaaaaa', 'qwertyuiop'
+]
+
 export function validatePassword(password: string): { valid: boolean; error?: string; strength: 'weak' | 'medium' | 'strong' } {
   if (!password) {
     return { valid: false, error: 'Password is required', strength: 'weak' }
@@ -132,8 +137,24 @@ export function validatePassword(password: string): { valid: boolean; error?: st
     return { valid: false, error: 'Password must be at least 8 characters', strength: 'weak' }
   }
 
-  let score = 0
+  // Check for weak passwords
+  const lower = password.toLowerCase()
+  if (WEAK_PASSWORDS.includes(lower)) {
+    return { valid: false, error: 'Password is too common. Choose something more unique.', strength: 'weak' }
+  }
 
+  // Check for repeating characters (e.g., "aaaaaaaa", "11111111")
+  if (/^(.)\1+$/.test(password)) {
+    return { valid: false, error: 'Password cannot be all the same character', strength: 'weak' }
+  }
+
+  // Check for simple sequences (e.g., "12345678", "abcdefgh")
+  if (/^(?:12345678|abcdefgh|qwertyui)$/i.test(password)) {
+    return { valid: false, error: 'Password is too simple', strength: 'weak' }
+  }
+
+  // Calculate strength based on variety
+  let score = 0
   if (password.length >= 8) score++
   if (password.length >= 12) score++
   if (/[A-Z]/.test(password)) score++
@@ -142,18 +163,6 @@ export function validatePassword(password: string): { valid: boolean; error?: st
   if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) score++
 
   const strength = score <= 2 ? 'weak' : score <= 4 ? 'medium' : 'strong'
-
-  const hasUpper = /[A-Z]/.test(password)
-  const hasNumber = /[0-9]/.test(password)
-  const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password)
-
-  if (!hasUpper || !hasNumber || !hasSpecial) {
-    const missing: string[] = []
-    if (!hasUpper) missing.push('an uppercase letter')
-    if (!hasNumber) missing.push('a number')
-    if (!hasSpecial) missing.push('a special character')
-    return { valid: false, error: `Password must include ${missing.join(', ')}`, strength }
-  }
 
   return { valid: true, strength }
 }
