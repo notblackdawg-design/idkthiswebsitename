@@ -20,7 +20,7 @@ const MAX_VIDEO_SIZE = 50 * 1024 * 1024 // 50MB
 const MAX_AVATAR_SIZE = 5 * 1024 * 1024 // 5MB
 
 // Media bucket name in Supabase
-const MEDIA_BUCKET = 'media-media'
+const MEDIA_BUCKET = 'media'
 const AVATAR_BUCKET = 'avatars'
 
 export interface MediaValidationResult {
